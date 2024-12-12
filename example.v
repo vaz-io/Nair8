@@ -1,68 +1,77 @@
 # Natural Language Syntax Exploration
 
-# Type System Refinement
-count as Whole
-measure as Decimal is 3.14
-message as Text 
-flag as Logic
-empty as Void
+# Variable Declarations with Type Annotations (similar to TypeScript/Java)
+count as Whole                  # int/Integer type
+measure as Decimal is 3.14      # float/double type
+message as Text                # string type
+flag as Logic                   # boolean type
+empty as Void                   # void/null type
 empty is null
 
 count is 0
 message as Text is "Hello, World!"
 
-# Data Structures
-number_collection is [1, 2, 3, 4, 5] as List[Whole]
+# Strongly-Typed Collections (analogous to Java Generics/TypeScript Arrays)
+number_collection is [1, 2, 3, 4, 5] as List[Whole]  # Generic List<int>
+
+# Dynamic Mapping with Static Type Annotation
 person_info as Mapping \
-    of Text to Any is \
+    of Text to Any is \        # Dictionary<string, object> or Map<String, Object>
     "name": Text is "John",
     "age": Whole is 30,
     "is_student": Logic is false
 
-# Compute Block with Descriptive Parameters
+# Function Declaration with Pattern Matching (similar to Scala/F# match expressions)
 Job process requires first, second, action as Number, Number, Text returning Whole:
-    when action is "add":
+    when action is "add":        # Case/Switch statement equivalent
         output first + second
     when action is "multiply":
         output first * second
-    or:
+    or:                         # default case
         raise "Unknown action" as Error
 
-# Entity Definition with Inheritance
+# Class Definition with Constructor and Inheritance (OOP style like Java/C#)
 Object Person inherits BaseEntity:
-    build defaults name as Text is "Unknown", age as Whole is 0:
-        my name is name
+    instance as secret Person
+    name as Text
+    age as Whole
+
+    build defaults name is "Unknown", age is 0:
+        my name is name         # 'my' is equivalent to 'this' or 'self'
         my age is age
     
     Job greetings returns Text:
-        output "I am {my name}, {my age} years old"
+        output "I am {my name}, {my age} years old"  # String interpolation
     
-    Job anonymous returns Person:
-        output new Person()
+    Job singleton returns Person:
+        when my instance is Void:
+            my instance is new Person()
+    
+        output my instance
 
-# Handling Potential Errors
+# Exception Handling (try-catch-finally block)
 Job possible_risk:
-    do:
+    do:                         # try block
         result is 10 / 0
-    fail problem as DivideByZeroError:
+    fail problem as DivideByZeroError:  # catch block
         show "Encountered: {problem.message}"
-    always:
+    always:                     # finally block
         show "Examination finished"
 
-# Functional Transformations
+# Functional Programming Operations (similar to LINQ/Stream operations)
 numbers is [1, 2, 3, 4, 5] as List[Whole]
-squared is numbers and each number becomes number * number // for each collect
-filtered is numbers when each number > 2 // iter map filter
+squared is numbers and each number becomes number * number # map() operation
+filtered is numbers when each number > 2 # filter() operation
 
-# Async Data Retrieval
+# Asynchronous Function (similar to async/await in JS/C#)
 Job gather_data requires url as Text returns Promise[Text]:
-    response as Text is await http.fetch at url
+    response as Text is await http.fetch at url    # await keyword for async operations
     output response.content
 
-# Understanding Different Values
+# Type Pattern Matching (similar to Rust/Scala match expressions)
 Job describe_value requires value as Any returns Text:
-    match value:
-        when Whole:
+    match value:                # Pattern matching on types
+        when Whole:             # Type case branches
             output "This is a whole number"
         when Decimal: 
             output "This is a measured number"
@@ -71,12 +80,12 @@ Job describe_value requires value as Any returns Text:
         or: 
             output "Unknown type"
 
-# Sequence Generator # TODO: Implement an iterator and reword this to use it
+# Generator Function (similar to Python generators)
 Job fibonacci requires max as Whole returns Whole:
     first as Whole is 0
     second as Whole is 1
     
-    loop while true:
+    loop while true:            # Infinite loop with yield
         yield first
         next as Whole is first + second
         first is second
@@ -88,9 +97,9 @@ Job fibonacci requires max as Whole returns Whole:
 
 # TODO: Create a Lambda type
 
-# Primary Execution
+# Program Entry Point (similar to main() in C/Java)
 main:
-    person as Person is new Person with "Alice", 25
+    person as Person is new Person with "Alice", 25  # Object instantiation
     show person speak about me
     
     result as Whole is process using 5, 3, "multiply"

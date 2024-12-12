@@ -29,7 +29,11 @@
                 "extensions": [
                     ".v"
                 ],
-                "configuration": "./vernacular.language-configuration.json"
+                "configuration": "./vernacular.language-configuration.json",
+                "icon": {
+                    "light": "images/vernacular-logo-32.png",
+                    "dark": "images/vernacular-logo-32.png"
+                }
             }
         ],
         "grammars": [
