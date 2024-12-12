@@ -368,6 +368,14 @@ impl Runtime {
                     }
                     Ok(())
                 },
+                OpCode::Show => {
+                    if let Some(value) = stack.pop() {
+                        println!("{}", value);
+                    } else {
+                        return Err("Stack underflow".to_string());
+                    }
+                    Ok(())
+                },
             }?;
             ip += 1;
         }

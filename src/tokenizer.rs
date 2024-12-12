@@ -224,11 +224,26 @@ impl Tokenizer {
             '"' => self.string(),
             '{' => Ok(self.create_token(TokenType::LeftBrace)),
             '}' => Ok(self.create_token(TokenType::RightBrace)),
-            // ... other cases ...
+            '(' => Ok(self.create_token(TokenType::OpenParen)),
+            ')' => Ok(self.create_token(TokenType::CloseParen)),
+            '[' => Ok(self.create_token(TokenType::OpenBracket)),
+            ']' => Ok(self.create_token(TokenType::CloseBracket)),
+            ':' => Ok(self.create_token(TokenType::Colon)),
+            ',' => Ok(self.create_token(TokenType::Comma)),
+            '.' => Ok(self.create_token(TokenType::Dot)),
+            '+' => Ok(self.create_token(TokenType::Plus)),
+            '-' => Ok(self.create_token(TokenType::Minus)),
+            '*' => Ok(self.create_token(TokenType::Multiply)),
+            '/' => Ok(self.create_token(TokenType::Divide)),
+            '>' => Ok(self.create_token(TokenType::GreaterThan)),
+            '0'..='9' => self.number(),
             _ => {
-                // Read identifier first, then process it
-                let ident = self.read_identifier();
-                Ok(self.create_identifier_token(ident))
+                if c.is_alphabetic() || c == '_' {
+                    let ident = self.read_identifier();
+                    Ok(self.create_identifier_token(ident))
+                } else {
+                    Err(format!("Unexpected character: {}", c))
+                }
             },
         }
     }
@@ -421,6 +436,43 @@ impl Tokenizer {
             literal: text,
             line: self.line,
             column: self.column,
+        }
+    }
+
+    fn number(&mut self) -> Result<Token, String> {
+        let mut is_decimal = false;
+        
+        while !self.is_at_end() && self.peek().is_digit(10) {
+            self.advance();
+        }
+
+        // Look for a decimal point
+        if !self.is_at_end() && self.peek() == '.' {
+            is_decimal = true;
+            self.advance();  // Consume the dot
+
+            while !self.is_at_end() && self.peek().is_digit(10) {
+                self.advance();
+            }
+        }
+
+        let number_str: String = self.source[self.start..self.current].iter().collect();
+        match number_str.parse::<f64>() {
+            Ok(number) => {
+                let token_type = if is_decimal {
+                    TokenType::TypeDecimal
+                } else {
+                    TokenType::TypeWhole
+                };
+                
+                Ok(Token {
+                    token_type,
+                    literal: number_str,
+                    line: self.line,
+                    column: self.column,
+                })
+            },
+            Err(_) => Err("Invalid number".to_string()),
         }
     }
 }

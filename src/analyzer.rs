@@ -1,4 +1,4 @@
-use crate::parser::Node;
+use crate::{parser::Node, tokenizer::TokenType};
 use std::collections::HashMap;
 use crate::generator::Value;
 
@@ -204,5 +204,33 @@ impl Analyzer {
             key: Box::new(Type::Text),
             value: Box::new(Type::Any),
         })
+    }
+
+    fn token_type_to_type(&self, token_type: &TokenType) -> Type {
+        match token_type {
+            TokenType::TypeWhole => Type::Whole,
+            TokenType::TypeDecimal => Type::Decimal,
+            TokenType::TypeText => Type::Text,
+            TokenType::TypeLogic => Type::Truth,
+            TokenType::TypeVoid => Type::Void,
+            TokenType::Number(_) => Type::Decimal,  // Assuming all numbers are whole by default
+            TokenType::String(_) => Type::Text,
+            TokenType::Boolean(_) => Type::Truth,
+            TokenType::Null => Type::Void,
+            _ => Type::Any,
+        }
+    }
+
+    fn check_assignment(&self, var_name: &str, value_type: &TokenType) -> Result<(), String> {
+        if let Some(var_type) = self.variables.get(var_name) {
+            let converted_type = self.token_type_to_type(value_type);
+            if var_type != &converted_type {
+                return Err(format!(
+                    "Type mismatch: cannot assign {:?} to variable of type {:?}",
+                    converted_type, var_type
+                ));
+            }
+        }
+        Ok(())
     }
 }
