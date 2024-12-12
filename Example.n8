@@ -26,7 +26,7 @@ Job process requires first, second, action as Number, Number, Text returning Who
     when action is "multiply":
         output first * second
     or:
-        raise Error with "Unknown action"
+        raise "Unknown action" as Error
 
 # Entity Definition with Inheritance
 Object Person extends BaseEntity:
@@ -55,42 +55,53 @@ squared is numbers and each number becomes number * number // for each collect
 filtered is numbers when each number > 2 // iter map filter
 
 # Async Data Retrieval
-gather data from url as Text -> Promise[Text]:
-    response = await http.fetch at url
-    give back response.content
+Job gather_data requires url as Text returns Promise[Text]:
+    response as Text is await http.fetch at url
+    output response.content
 
 # Understanding Different Values
-describe what value is:
+Job describe_value requires value as Any returns Text:
     match value:
-        if Whole: 
-            give back "This is a whole number"
-        if Decimal: 
-            give back "This is a measured number"
-        if Text: 
-            give back "This is a message"
-        otherwise: 
-            give back "Unknown type"
+        when Whole:
+            output "This is a whole number"
+        when Decimal: 
+            output "This is a measured number"
+        when Text: 
+            output "This is a message"
+        or: 
+            output "Unknown type"
 
 # Sequence Generator
-create fibonacci up to max as Whole:
-    first = 0 as Whole
-    second = 1 as Whole
+Job fibonacci requires max as Whole returns Whole:
+    first as Whole is 0
+    second as Whole is 1
     
-    continue while true:
-        share first
-        next = first + second
-        first = second
-        second = next
+    loop while true:
+        yield first
+        next as Whole is first + second
+        first is second
+        second is next
+        show "first: {first}, second: {second}"
         
-        stop if first > max
+        when first > max:
+            output first
 
 # Primary Execution
-begin main:
-    person = new Person with "Alice", 25
+main:
+    person as Person is new Person with "Alice", 25
     show person speak about me
     
-    result = process using 5, 3, "multiply"
+    result as Whole is process using 5, 3, "multiply"
     show "Calculation outcome: {result}"
     
-    for each number in create fibonacci up to 100:
-        show number
+    show "Fibonacci sequence up to 100:" as Text
+    fibonacci using 100
+
+    show "Describe value:"
+    show describe_value using 10
+    show describe_value using 3.14
+    show describe_value using "Hello, World!"
+    show describe_value using true
+
+    show "Gather data:"
+    gather_data using "https://example.com"
