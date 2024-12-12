@@ -2,7 +2,7 @@
     "name": "vernacular-language-support",
     "displayName": "Vernacular Language",
     "description": "Syntax highlighting for Vernacular programming language",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "icon": "images/vernacular-logo-128.png",
     "galleryBanner": {
         "color": "#00a2c7",
