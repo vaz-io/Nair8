@@ -1,0 +1,96 @@
+# Natural Language Syntax Exploration
+
+# Type System Refinement
+count as Whole
+measure as Decimal is 3.14
+message as Text 
+flag as Logic
+empty as Void
+empty is null
+
+count is 0
+message as Text is "Hello, World!"
+
+# Data Structures
+number_collection is [1, 2, 3, 4, 5] as List[Whole]
+person_info as Mapping \
+    of Text to Any is \
+    "name": Text is "John",
+    "age": Whole is 30,
+    "is_student": Logic is false
+
+# Compute Block with Descriptive Parameters
+Job process requires first, second, action as Number, Number, Text returning Whole:
+    when action is "add":
+        output first + second
+    when action is "multiply":
+        output first * second
+    or:
+        raise Error with "Unknown action"
+
+# Entity Definition with Inheritance
+Object Person extends BaseEntity:
+    build defaults name as Text is "Unknown", age as Whole is 0:
+        my name is name
+        my age is age
+    
+    Job greetings returns Text:
+        output "I am {my name}, {my age} years old"
+    
+    Job anonymous returns Person:
+        output new Person()
+
+# Handling Potential Errors
+Job possible_risk:
+    do:
+        result is 10 / 0
+    fail problem as DivideByZeroError:
+        show "Encountered: {problem.message}"
+    always:
+        show "Examination finished"
+
+# Functional Transformations
+numbers is [1, 2, 3, 4, 5] as List[Whole]
+squared is numbers and each number becomes number * number // for each collect
+filtered is numbers when each number > 2 // iter map filter
+
+# Async Data Retrieval
+gather data from url as Text -> Promise[Text]:
+    response = await http.fetch at url
+    give back response.content
+
+# Understanding Different Values
+describe what value is:
+    match value:
+        if Whole: 
+            give back "This is a whole number"
+        if Decimal: 
+            give back "This is a measured number"
+        if Text: 
+            give back "This is a message"
+        otherwise: 
+            give back "Unknown type"
+
+# Sequence Generator
+create fibonacci up to max as Whole:
+    first = 0 as Whole
+    second = 1 as Whole
+    
+    continue while true:
+        share first
+        next = first + second
+        first = second
+        second = next
+        
+        stop if first > max
+
+# Primary Execution
+begin main:
+    person = new Person with "Alice", 25
+    show person speak about me
+    
+    result = process using 5, 3, "multiply"
+    show "Calculation outcome: {result}"
+    
+    for each number in create fibonacci up to 100:
+        show number
