@@ -80,13 +80,13 @@ Job describe_value requires value as Any returns Text:
         or: 
             output "Unknown type"
 
-# Generator Function (similar to Python generators)
+# Generator Function (similar to Python generators) # TODO: Implement as iterator/generator
 Job fibonacci requires max as Whole returns Whole:
     first as Whole is 0
     second as Whole is 1
     
     loop while true:            # Infinite loop with yield
-        yield first
+        # first            # Not yet implemented
         next as Whole is first + second
         first is second
         second is next
@@ -96,11 +96,12 @@ Job fibonacci requires max as Whole returns Whole:
             output first
 
 # TODO: Create a Lambda type
+# lamba as Auto returns Whole a + Whole b
 
 # Program Entry Point (similar to main() in C/Java)
 main:
-    person as Person is new Person with "Alice", 25  # Object instantiation
-    show person speak about me
+    alice as Person is new Person using "Alice", 25  # Object instantiation
+    show alice's greetings
     
     result as Whole is process using 5, 3, "multiply"
     show "Calculation outcome: {result}"
@@ -114,5 +115,12 @@ main:
     show describe_value using "Hello, World!"
     show describe_value using true
 
+    # show "Lambda:"
+    # show lambda using 1, 2
+
     show "Gather data:"
-    gather_data using "https://example.com"
+    data as Text awaits gather_data using "https://example.com"
+    show data
+
+    show "Possible risk:"
+    show possible_risk
