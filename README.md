@@ -86,7 +86,8 @@ cargo run
 
 4. Use the REPL:
 ```bash
-> message as Text is "Hello, World!"
+> world is "World"
+> message as Text is "Hello, {world}!"
 > show message
 Hello, World!
 ```
