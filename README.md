@@ -78,10 +78,10 @@ git clone https://github.com/yourusername/Vernacular.git
 cd Vernacular
 ```
 
-3. Build and run:
+3. Build and run file:
 ```bash
 cargo build
-cargo run
+cargo run example.v
 ```
 
 4. Use the REPL:

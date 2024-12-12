@@ -71,7 +71,7 @@ Job describe_value requires value as Any returns Text:
         or: 
             output "Unknown type"
 
-# Sequence Generator
+# Sequence Generator # TODO: Implement an iterator and reword this to use it
 Job fibonacci requires max as Whole returns Whole:
     first as Whole is 0
     second as Whole is 1
@@ -85,6 +85,8 @@ Job fibonacci requires max as Whole returns Whole:
         
         when first > max:
             output first
+
+# TODO: Create a Lambda type
 
 # Primary Execution
 main:

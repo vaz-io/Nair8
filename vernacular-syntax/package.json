@@ -1,0 +1,49 @@
+{
+    "name": "vernacular-language-support",
+    "displayName": "Vernacular Language",
+    "description": "Syntax highlighting for Vernacular programming language",
+    "version": "0.1.0",
+    "icon": "images/vernacular-logo-128.png",
+    "galleryBanner": {
+        "color": "#00a2c7",
+        "theme": "dark"
+    },
+    "engines": {
+        "vscode": "^1.60.0"
+    },
+    "categories": [
+        "Programming Languages"
+    ],
+    "main": "extension.js",
+    "activationEvents": [
+        "onLanguage:vernacular"
+    ],
+    "contributes": {
+        "languages": [
+            {
+                "id": "vernacular",
+                "aliases": [
+                    "Vernacular",
+                    "vernacular"
+                ],
+                "extensions": [
+                    ".v"
+                ],
+                "configuration": "./vernacular.language-configuration.json"
+            }
+        ],
+        "grammars": [
+            {
+                "language": "vernacular",
+                "scopeName": "source.vernacular",
+                "path": "./syntaxes/vernacular.tmLanguage.json"
+            }
+        ]
+    },
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "keywords": ["Vernacular", "vernacular", "language", "support", "syntax", "highlighting"],
+    "author": "Richard I. Christopher, Vazio",
+    "license": "Ancillary"
+}

@@ -1,0 +1,45 @@
+{
+    "name": "Vernacular",
+    "scopeName": "source.vernacular",
+    "patterns": [
+        {
+            "match": "#.*$",
+            "name": "comment.line.number-sign.vernacular"
+        },
+        {
+            "match": "\\b(Job|Object|main|build|do|fail|always|loop|when|or|output|raise|returns|returning|requires|inherits|becomes|await|yield|using|match|show|speak|about|each|collect|iter|map|filter)\\b",
+            "name": "keyword.control.vernacular"
+        },
+        {
+            "match": "\\b(Whole|Decimal|Text|Logic|Void|Any|Promise|List|Mapping|Error|Number)\\b",
+            "name": "storage.type.vernacular"
+        },
+        {
+            "match": "\\b(true|false|null)\\b",
+            "name": "constant.language.vernacular"
+        },
+        {
+            "match": "\\b(is|as|of|to|and|with|at|while)\\b",
+            "name": "keyword.operator.vernacular"
+        },
+        {
+            "begin": "\"",
+            "end": "\"",
+            "name": "string.quoted.double.vernacular",
+            "patterns": [
+                {
+                    "match": "\\{[^}]*\\}",
+                    "name": "string.interpolated.vernacular"
+                }
+            ]
+        },
+        {
+            "match": "\\b\\d+(\\.\\d+)?\\b",
+            "name": "constant.numeric.vernacular"
+        },
+        {
+            "match": "\\b(my|new)\\b",
+            "name": "variable.language.vernacular"
+        }
+    ]
+}
