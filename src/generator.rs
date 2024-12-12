@@ -37,6 +37,8 @@ pub enum OpCode {
     Concat,
     Interpolate(usize),  // number of parts
     CheckAssignmentType,
+    ConvertToString,
+    Show,
 }
 
 #[derive(Debug, Clone)]
@@ -166,7 +168,7 @@ impl BytecodeGenerator {
 
             Node::ShowStmt(expr) => {
                 self.generate_node(expr)?;
-                self.instructions.push(OpCode::Call("show".to_string(), 1));
+                self.emit(OpCode::Show);
                 Ok(())
             },
 
@@ -256,22 +258,19 @@ impl BytecodeGenerator {
             },
 
             Node::StringInterpolation { parts } => {
-                for part in parts {
-                    self.generate_node(part)?;
-                }
+                self.generate_string_interpolation(parts)?;
                 self.emit(OpCode::Interpolate(parts.len()));
                 Ok(())
             },
 
-            Node::Literal(token_type) => {
-                let value = match token_type {
-                    crate::tokenizer::TokenType::Number(n) => Value::Number(*n),
-                    crate::tokenizer::TokenType::String(s) => Value::String(s.clone()),
-                    crate::tokenizer::TokenType::Boolean(b) => Value::Boolean(*b),
-                    crate::tokenizer::TokenType::Null => Value::Null,
-                    _ => return Err("Unsupported literal type".to_string()),
-                };
-                self.emit(OpCode::Push(value));
+            Node::Literal(value) => {
+                match value {
+                    Value::Number(n) => self.emit(OpCode::Push(Value::Number(*n))),
+                    Value::String(s) => self.emit(OpCode::Push(Value::String(s.clone()))),
+                    Value::Boolean(b) => self.emit(OpCode::Push(Value::Boolean(*b))),
+                    Value::Null => self.emit(OpCode::Push(Value::Null)),
+                    Value::Object(name) => self.emit(OpCode::Push(Value::Object(name.clone()))),
+                }
                 Ok(())
             },
 
@@ -313,6 +312,26 @@ impl BytecodeGenerator {
         
         // Store the result
         self.emit(OpCode::StoreVar(name.to_string()));
+        Ok(())
+    }
+
+    fn generate_string_interpolation(&mut self, parts: &[Node]) -> Result<(), String> {
+        for part in parts {
+            match part {
+                Node::Literal(Value::String(s)) => {
+                    self.emit(OpCode::Push(Value::String(s.clone())));
+                },
+                Node::Variable(name) => {
+                    self.emit(OpCode::LoadVar(name.clone()));
+                    self.emit(OpCode::ConvertToString);
+                },
+                _ => self.generate_node(part)?,
+            }
+            
+            if parts.len() > 1 {
+                self.emit(OpCode::Concat);
+            }
+        }
         Ok(())
     }
 }

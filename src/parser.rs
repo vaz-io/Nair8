@@ -1,4 +1,5 @@
-use crate::tokenizer::{Token, TokenType};
+use crate::{analyzer::Type, tokenizer::{Token, TokenType}};
+use crate::generator::Value;
 
 #[derive(Debug, Clone)]
 pub enum Node {
@@ -54,7 +55,7 @@ pub enum Node {
         object: Box<Node>,
         name: String,
     },
-    Literal(TokenType),
+    Literal(Value),
     Variable(String),
     Assignment {
         name: String,
@@ -104,13 +105,16 @@ pub enum Node {
         value: Box<Node>,
         cases: Vec<(Node, Node)>,
     },
-    YieldStmt(Box<Node>),
+    EmitStmt(Box<Node>),
     AwaitExpr {
         value: Box<Node>,
     },
     PropertyAccess {
         object: Box<Node>,
         property: String,
+    },
+    MappingLiteral {
+        entries: Vec<(String, Option<Node>, Node)>, // (param_name, optional_type, value)
     },
 }
 
@@ -136,36 +140,46 @@ impl Parser {
     }
 
     fn declaration(&mut self) -> Result<Node, String> {
-        if self.match_token(&[TokenType::Job]) {
-            self.job_declaration()
-        } else if self.match_token(&[TokenType::Object]) {
-            self.object_declaration()
-        } else if let TokenType::Identifier(_) = self.peek().token_type {
-            // This could be either a variable declaration or assignment
-            let name = self.consume_identifier("Expected identifier")?;
-            
+        if let TokenType::Identifier(name) = &self.peek().token_type {
+            let name = name.clone();
+            self.advance();
+
             if self.match_token(&[TokenType::As]) {
-                // Variable declaration with type annotation
-                let type_annotation = Some(Box::new(self.type_annotation()?));
-                let initializer = if self.match_token(&[TokenType::Is]) {
-                    Some(Box::new(self.expression()?))
+                let type_node = self.type_annotation()?;
+                
+                if matches!(type_node, Node::MappingType { .. }) {
+                    self.consume(&TokenType::Includes, "Expected 'includes' after mapping type")?;
+                    
+                    let initializer = Some(Box::new(self.mapping_initializer()?));
+                    Ok(Node::VariableDecl {
+                        name,
+                        type_annotation: Some(Box::new(type_node)),
+                        initializer,
+                    })
                 } else {
-                    None
-                };
+                    if self.match_token(&[TokenType::Is]) {
+                        // Regular assignment without type annotation
+                        Ok(Node::VariableDecl {
+                            name,
+                            type_annotation: None,
+                            initializer: Some(Box::new(self.expression()?)),
+                        })
+                    } else {
+                        Err("Expected 'as' or 'is' after identifier".to_string())
+                    }
+                }
+            } else if self.match_token(&[TokenType::Is]) {
+                // Regular assignment without type annotation
                 Ok(Node::VariableDecl {
                     name,
-                    type_annotation,
-                    initializer,
+                    type_annotation: None,
+                    initializer: Some(Box::new(self.expression()?)),
                 })
-            } else if self.match_token(&[TokenType::Is]) {
-                // Assignment to existing variable
-                let value = Box::new(self.expression()?);
-                Ok(Node::Assignment { name, value })
             } else {
                 Err("Expected 'as' or 'is' after identifier".to_string())
             }
         } else {
-            self.statement()
+            Err("Expected identifier".to_string())
         }
     }
 
@@ -256,6 +270,28 @@ impl Parser {
 
     fn type_annotation(&mut self) -> Result<Node, String> {
         match &self.peek().token_type {
+            TokenType::TypeMapping => {
+                self.advance();
+                
+                // Check if there's an explicit type
+                if self.match_token(&[TokenType::Of]) {
+                    let value_type = Box::new(self.type_annotation()?);
+                    Ok(Node::MappingType {
+                        key_type: Box::new(Node::TypeAnnotation("Text".to_string())),
+                        value_type,
+                    })
+                } else {
+                    // Default to Any
+                    Ok(Node::MappingType {
+                        key_type: Box::new(Node::TypeAnnotation("Text".to_string())),
+                        value_type: Box::new(Node::TypeAnnotation("Any".to_string())),
+                    })
+                }
+            },
+            TokenType::TypeText => {
+                self.advance();
+                Ok(Node::TypeAnnotation("Text".to_string()))
+            },
             TokenType::TypeWhole => {
                 self.advance();
                 Ok(Node::TypeAnnotation("Whole".to_string()))
@@ -263,10 +299,6 @@ impl Parser {
             TokenType::TypeDecimal => {
                 self.advance();
                 Ok(Node::TypeAnnotation("Decimal".to_string()))
-            },
-            TokenType::TypeText => {
-                self.advance();
-                Ok(Node::TypeAnnotation("Text".to_string()))
             },
             TokenType::TypeLogic => {
                 self.advance();
@@ -284,17 +316,6 @@ impl Parser {
                     Ok(Node::ListType { element_type })
                 } else {
                     Ok(Node::TypeAnnotation("List".to_string()))
-                }
-            },
-            TokenType::TypeMapping => {
-                self.advance();
-                if self.match_token(&[TokenType::Of]) {
-                    let key_type = Box::new(self.type_annotation()?);
-                    self.consume(&TokenType::To, "Expected 'to' after key type")?;
-                    let value_type = Box::new(self.type_annotation()?);
-                    Ok(Node::MappingType { key_type, value_type })
-                } else {
-                    Ok(Node::TypeAnnotation("Mapping".to_string()))
                 }
             },
             TokenType::TypePromise => {
@@ -318,14 +339,6 @@ impl Parser {
             TokenType::TypeError => {
                 self.advance();
                 Ok(Node::TypeAnnotation("Error".to_string()))
-            },
-            TokenType::TypePerson => {
-                self.advance();
-                Ok(Node::TypeAnnotation("Person".to_string()))
-            },
-            TokenType::TypeBaseEntity => {
-                self.advance();
-                Ok(Node::TypeAnnotation("BaseEntity".to_string()))
             },
             _ => Err("Expected type name".to_string()),
         }
@@ -522,7 +535,7 @@ impl Parser {
             let operator = self.previous_token_type();
             let right = Box::new(self.unary()?);
             Ok(Node::Binary {
-                left: Box::new(Node::Literal(TokenType::Number(0.0))),
+                left: Box::new(Node::Literal(Value::Number(0.0))),
                 operator,
                 right,
             })
@@ -572,37 +585,67 @@ impl Parser {
     }
 
     fn primary(&mut self) -> Result<Node, String> {
-        if self.match_token(&[TokenType::New]) {
-            let class_name = self.consume_identifier("Expected class name after 'new'")?;
-            let mut args = Vec::new();
-            
-            if self.match_token(&[TokenType::With]) {
-                args = self.argument_list()?;
-            }
-            
-            Ok(Node::New { class_name, args })
-        } else {
-            let token = self.peek().token_type.clone();
-            match token {
-                TokenType::String(s) => {
-                    self.advance();
-                    if s.contains('{') && s.contains('}') {
-                        // Handle string interpolation...
-                        todo!()
+        let token = self.peek().clone();
+        match token.token_type {
+            TokenType::Identifier(name) => {
+                self.advance();
+                Ok(Node::Variable(name))
+            },
+            TokenType::String(value) => {
+                self.advance();
+                Ok(Node::Literal(Value::String(value)))
+            },
+            TokenType::LeftBrace => {
+                self.advance();
+                let expr = self.expression()?;
+                self.consume(&TokenType::RightBrace, "Expected '}' after expression")?;
+                Ok(expr)
+            },
+            TokenType::Quote => {
+                self.advance();
+                let mut parts = Vec::new();
+                
+                while !self.check(&TokenType::Quote) && !self.is_at_end() {
+                    if self.match_token(&[TokenType::LeftBrace]) {
+                        let expr = self.expression()?;
+                        self.consume(&TokenType::RightBrace, "Expected '}' after expression")?;
+                        parts.push(expr);
                     } else {
-                        Ok(Node::Literal(TokenType::String(s)))
+                        let text = self.consume_string_part()?;
+                        parts.push(Node::Literal(Value::String(text)));
                     }
-                },
-                TokenType::Number(_) | TokenType::Boolean(_) | TokenType::Null => {
-                    self.advance();
-                    Ok(Node::Literal(token))
-                },
-                TokenType::Identifier(name) => {
-                    self.advance();
-                    Ok(Node::Variable(name))
-                },
-                _ => Err("Expected expression".to_string()),
-            }
+                }
+                
+                self.consume(&TokenType::Quote, "Expected '\"' after string")?;
+                Ok(Node::StringInterpolation { parts })
+            },
+            TokenType::Number(value) => {
+                self.advance();
+                Ok(Node::Literal(Value::Number(value)))
+            },
+            TokenType::Boolean(value) => {
+                self.advance();
+                Ok(Node::Literal(Value::Boolean(value)))
+            },
+            TokenType::Null => {
+                self.advance();
+                Ok(Node::Literal(Value::Null))
+            },
+            TokenType::TypeMapping => {
+                self.advance();
+                Ok(Node::MappingLiteral { entries: Vec::new() })
+            },
+            _ => Err("Expected expression".to_string()),
+        }
+    }
+
+    fn consume_string_part(&mut self) -> Result<String, String> {
+        if let TokenType::StringPart(text) = &self.peek().token_type {
+            let text = text.clone();
+            self.advance();
+            Ok(text)
+        } else {
+            Err("Expected string part".to_string())
         }
     }
 
@@ -661,16 +704,55 @@ impl Parser {
     }
 
     fn string_literal(&mut self) -> Result<Node, String> {
-        let token_type = self.advance().token_type.clone();
-        if let TokenType::String(s) = token_type {
-            if s.contains('{') && s.contains('}') {
-                // Handle string interpolation...
-                todo!()
-            } else {
-                Ok(Node::Literal(TokenType::String(s)))
-            }
+        // Clone the string before advancing
+        let string_content = if let TokenType::String(s) = &self.peek().token_type {
+            s.clone()
         } else {
-            Err("Expected string literal".to_string())
+            return Err("Expected string literal".to_string());
+        };
+        
+        // Now advance the parser
+        self.advance();
+        
+        // Process the string content
+        if string_content.contains('{') && string_content.contains('}') {
+            let mut parts = Vec::new();
+            let mut current_text = String::new();
+            let mut chars = string_content.chars().peekable();
+            
+            while let Some(c) = chars.next() {
+                if c == '{' {
+                    // Add accumulated text if any
+                    if !current_text.is_empty() {
+                        parts.push(Node::Literal(Value::String(current_text.clone())));
+                        current_text.clear();
+                    }
+                    
+                    // Collect variable name
+                    let mut var_name = String::new();
+                    while let Some(&next_char) = chars.peek() {
+                        if next_char == '}' {
+                            chars.next(); // consume the '}'
+                            break;
+                        }
+                        var_name.push(chars.next().unwrap());
+                    }
+                    
+                    // Add variable reference
+                    parts.push(Node::Variable(var_name));
+                } else {
+                    current_text.push(c);
+                }
+            }
+            
+            // Add any remaining text
+            if !current_text.is_empty() {
+                parts.push(Node::Literal(Value::String(current_text)));
+            }
+            
+            Ok(Node::StringInterpolation { parts })
+        } else {
+            Ok(Node::Literal(Value::String(string_content)))
         }
     }
 
@@ -744,22 +826,175 @@ impl Parser {
     }
 
     fn statement(&mut self) -> Result<Node, String> {
-        if self.match_token(&[TokenType::When]) {
-            self.when_statement()
-        } else if self.match_token(&[TokenType::Loop]) {
-            self.loop_statement()
-        } else if self.match_token(&[TokenType::Show]) {
-            self.show_statement()
-        } else if self.match_token(&[TokenType::Raise]) {
-            self.raise_statement()
-        } else if self.match_token(&[TokenType::Returns]) {
-            self.return_statement()
-        } else {
-            self.expression_statement()
+        match self.peek().token_type {
+            TokenType::Show => {
+                self.advance(); // Consume 'show'
+                let expr = self.expression()?;
+                Ok(Node::ShowStmt(Box::new(expr)))
+            },
+            TokenType::Raise => {
+                self.advance(); // Consume 'raise'
+                self.raise_statement()
+            },
+            TokenType::Returns => {
+                self.advance(); // Consume 'returns'
+                self.return_statement()
+            },
+            TokenType::Requires => {
+                self.advance(); // Consume 'requires'
+                self.declaration()
+            },
+            TokenType::Returning => {
+                self.advance(); // Consume 'returning'
+                self.declaration()
+            },
+            TokenType::Emit => {
+                self.advance(); // Consume 'emit'
+                self.declaration()
+            },
+            TokenType::Using => {
+                self.advance(); // Consume 'using'
+                self.declaration()
+            },
+            TokenType::With => {
+                self.advance(); // Consume 'with'
+                self.declaration()
+            },
+            TokenType::As => {
+                self.advance(); // Consume 'as'
+                self.declaration()
+            },
+            TokenType::Is => {
+                self.advance(); // Consume 'is'
+                self.declaration()
+            },
+            TokenType::To => {
+                self.advance(); // Consume 'to'
+                self.declaration()
+            },
+            TokenType::Of => {
+                self.advance(); // Consume 'of'
+                self.declaration()
+            },
+            TokenType::At => {
+                self.advance(); // Consume 'at'
+                self.declaration()
+            },
+            TokenType::And => {
+                self.advance(); // Consume 'and'
+                self.declaration()
+            },
+            TokenType::Each => {
+                self.advance(); // Consume 'each'
+                self.declaration()
+            },
+            TokenType::Becomes => {
+                self.advance(); // Consume 'becomes'
+                self.declaration()
+            },
+            TokenType::My => {
+                self.advance(); // Consume 'my'
+                self.declaration()
+            },
+            TokenType::About => {
+                self.advance(); // Consume 'about'
+                self.declaration()
+            },
+            TokenType::Me => {
+                self.advance(); // Consume 'me'
+                self.declaration()
+            },
+            TokenType::Loop => {
+                self.advance(); // Consume 'loop'
+                self.loop_statement()
+            },
+            TokenType::While => {
+                self.advance(); // Consume 'while'
+                self.loop_statement()
+            },
+            TokenType::Emit => {
+                self.advance(); // Consume 'Emit'
+                self.declaration()
+            },
+            TokenType::Match => {
+                self.advance(); // Consume 'match'
+                self.declaration()
+            },
+            TokenType::Output => {
+                self.advance(); // Consume 'output'
+                self.declaration()
+            },
+            _ => self.declaration(),
         }
     }
 
     fn previous_token_type(&mut self) -> TokenType {
         self.previous().token_type.clone()
+    }
+
+    fn mapping_initializer(&mut self) -> Result<Node, String> {
+        let mut entries = Vec::new();
+        
+        loop {
+            // Parse parameter name
+            let param_name = self.consume_identifier("Expected parameter name")?;
+            
+            // Handle both explicit and implicit type declarations
+            let (param_type, value) = if self.match_token(&[TokenType::As]) {
+                // Explicit type: param as Type is value
+                let param_type = self.type_annotation()?;
+                self.consume(&TokenType::Is, "Expected 'is' after type")?;
+                let value = self.expression()?;
+                (Some(param_type), value)
+            } else if self.match_token(&[TokenType::Is]) {
+                // Implicit type: param is value
+                let value = self.expression()?;
+                (None, value)
+            } else {
+                return Err("Expected 'as' or 'is' after parameter name".to_string());
+            };
+            
+            entries.push((param_name, param_type, value));
+            
+            if !self.match_token(&[TokenType::Comma]) {
+                break;
+            }
+            
+            // Skip any newlines after comma
+            while self.peek().token_type == TokenType::NewLine {
+                self.advance();
+            }
+        }
+        
+        Ok(Node::MappingLiteral { entries })
+    }
+
+    fn type_from_annotation(&mut self, type_node: &Node) -> Result<Type, String> {
+        match type_node {
+            Node::MappingType { key_type, value_type } => {
+                let key = self.type_from_annotation(key_type)?;
+                let value = self.type_from_annotation(value_type)?;
+                Ok(Type::Map {
+                    key: Box::new(key),
+                    value: Box::new(value),
+                })
+            },
+            Node::TypeAnnotation(type_name) => {
+                match type_name.as_str() {
+                    "Mapping" => Ok(Type::Map {
+                        key: Box::new(Type::Text),
+                        value: Box::new(Type::Any),
+                    }),
+                    "Whole" => Ok(Type::Whole),
+                    "Decimal" => Ok(Type::Decimal),
+                    "Text" => Ok(Type::Text),
+                    "Truth" => Ok(Type::Truth),
+                    "Void" => Ok(Type::Void),
+                    "Any" => Ok(Type::Any),
+                    _ => Err(format!("Unknown type: {}", type_name)),
+                }
+            },
+            _ => Err("Invalid type annotation".to_string()),
+        }
     }
 }

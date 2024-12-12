@@ -21,34 +21,51 @@ impl Runtime {
     }
 
     pub fn run_repl(&mut self) -> Result<(), String> {
-        println!("Welcome to nair8 v0.1.0");
-        println!("Type '.exit' to quit, '.load' to load a file, or enter code directly.");
+        println!("Vernacular Runtime v0.1.0");
+        println!("'.exit' is quit, '.load' is load, or enter code directly.");
+
+        let mut input = String::new();
+        let mut is_continuation = false;
 
         loop {
-            print!("> ");
+            if is_continuation {
+                print!("... ");
+            } else {
+                print!("> ");
+            }
             io::stdout().flush().unwrap();
 
-            let mut input = String::new();
-            io::stdin().read_line(&mut input).expect("Failed to read line");
+            let mut line = String::new();
+            io::stdin().read_line(&mut line).expect("Failed to read line");
+            let line = line.trim_end();
 
-            let input = input.trim();
-
-            match input {
-                ".exit" => {
+            match line {
+                ".exit" if !is_continuation => {
                     println!("Goodbye!");
                     break;
                 }
-                ".load" => {
+                ".load" if !is_continuation => {
                     println!("Enter file path:");
                     let mut file_path = String::new();
                     io::stdin().read_line(&mut file_path).expect("Failed to read line");
                     let file_path = file_path.trim();
                     
                     self.run_file(file_path)?;
+                    input.clear();
+                    is_continuation = false;
                 }
                 _ => {
-                    if !input.is_empty() {
-                        self.process_input(input)?;
+                    input.push_str(line);
+                    input.push('\n');  // Add newline to maintain line structure
+                    
+                    if line.trim_end().ends_with('\\') {
+                        is_continuation = true;
+                    } else {
+                        if !input.trim().is_empty() {
+                            self.process_input(&input)?;
+                        }
+                        input.clear();
+                        is_continuation = false;
                     }
                 }
             }
@@ -68,7 +85,10 @@ impl Runtime {
     }
 
     fn process_input(&mut self, input: &str) -> Result<(), String> {
-        self.tokenizer = Tokenizer::new(input);
+        // First, preprocess the input to handle line continuations
+        let processed_input = self.preprocess_input(input)?;
+        
+        self.tokenizer = Tokenizer::new(&processed_input);
         let tokens = self.tokenizer.tokenize()?;
         
         // Create and run parser
@@ -90,7 +110,7 @@ impl Runtime {
                     _ => Type::Any,
                 }
             } else {
-                Type::Any  // If no declared type, it's Any
+                Type::Any
             };
             analyzer.variables.insert(name.clone(), var_type);
         }
@@ -118,6 +138,29 @@ impl Runtime {
         }
 
         self.execute_bytecode(bytecode)
+    }
+
+    fn preprocess_input(&self, input: &str) -> Result<String, String> {
+        let mut processed = String::new();
+        let mut lines = input.lines().peekable();
+        
+        while let Some(line) = lines.next() {
+            let trimmed = line.trim_end();
+            if trimmed.ends_with('\\') {
+                // Remove the \ and add a space
+                processed.push_str(&trimmed[..trimmed.len()-1]);
+                processed.push(' ');
+            } else {
+                // Add the line as-is
+                processed.push_str(trimmed);
+                // Only add newline if there's more content
+                if lines.peek().is_some() {
+                    processed.push('\n');
+                }
+            }
+        }
+        
+        Ok(processed)
     }
 
     fn execute_bytecode(&mut self, bytecode: Vec<OpCode>) -> Result<(), String> {
@@ -212,6 +255,11 @@ impl Runtime {
                         Ok(())
                     }
                 },
+                OpCode::ConvertToString => {
+                    let value = stack.pop().ok_or("Stack underflow")?;
+                    stack.push(Value::String(value.to_string()));
+                    Ok(())
+                },
                 OpCode::Call(name, arg_count) => {
                     let mut args = Vec::new();
                     // Pop arguments in reverse order
@@ -287,8 +335,8 @@ impl Runtime {
                 OpCode::Interpolate(part_count) => {
                     let mut result = String::new();
                     for _ in 0..*part_count {
-                        if let Some(Value::String(part)) = stack.pop() {
-                            result = part + &result;
+                        if let Some(value) = stack.pop() {
+                            result = value.to_string() + &result;
                         }
                     }
                     stack.push(Value::String(result));

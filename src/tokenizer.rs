@@ -27,7 +27,7 @@ pub enum TokenType {
     Using,
     Loop,
     While,
-    Yield,
+    Emit,
     Match,
     Output,
     Raise,
@@ -48,19 +48,17 @@ pub enum TokenType {
     Defaults,
 
     // Types
-    TypeWhole,
-    TypeDecimal,
-    TypeText,
-    TypeLogic,
-    TypeVoid,
-    TypeList,
-    TypeMapping,
-    TypePromise,
-    TypeAny,
-    TypeNumber,
-    TypeError,
-    TypePerson,
-    TypeBaseEntity,
+    TypeWhole,  // Whole number
+    TypeDecimal, // Decimal number
+    TypeText, // Text
+    TypeLogic, // Boolean 
+    TypeVoid, // Null
+    TypeList, // List
+    TypeMapping, // Mapping
+    TypePromise, // Future
+    TypeAny, // Any
+    TypeNumber, // Number
+    TypeError, // Error
 
     // Literals
     Number(f64),
@@ -90,6 +88,13 @@ pub enum TokenType {
     Comment(String),
 
     EOF,
+    NewLine,
+
+    Includes,  // Add this new token
+    LeftBrace,
+    RightBrace,
+    Quote,
+    StringPart(String),
 }
 
 pub struct Tokenizer {
@@ -165,24 +170,15 @@ impl Tokenizer {
                 ' ' | '\r' | '\t' => {
                     self.advance();
                 }
-                '\n' => {
-                    self.line += 1;
-                    self.column = 1;
-                    self.advance();
-                }
                 _ => break,
             }
         }
     }
 
-    fn create_token(&self, token_type: TokenType) -> Token {
-        let literal: String = self.source[self.start..self.current]
-            .iter()
-            .collect();
-        
+    fn create_token(&mut self, token_type: TokenType) -> Token {
         Token {
             token_type,
-            literal,
+            literal: self.source[self.start..self.current].iter().collect::<String>(),
             line: self.line,
             column: self.column,
         }
@@ -224,89 +220,50 @@ impl Tokenizer {
         }
 
         let c = self.advance();
-
         match c {
-            // Handle comments
-            '#' => {
-                while !self.is_at_end() && self.peek() != '\n' {
-                    self.advance();
-                }
-                let mut comment = self.source[self.start..self.current]
-                    .iter()
-                    .collect::<String>();
-                comment.remove(0);
-                comment.remove(comment.len() - 1);
-                // println!("Comment: {}", comment);
-                // println!("Line: {}", self.line);
-                // println!("Column: {}", self.column);    
-                // println!("Start: {}", self.start);
-                // println!("Current: {}", self.current);
-                // println!("Source: {}", self.source);
-
-                Ok(Token {
-                    token_type: TokenType::Comment(comment.clone()),
-                    literal: comment.clone(),
-                    line: self.line,
-                    column: self.column,
-                })
+            '"' => self.string(),
+            '{' => Ok(self.create_token(TokenType::LeftBrace)),
+            '}' => Ok(self.create_token(TokenType::RightBrace)),
+            // ... other cases ...
+            _ => {
+                // Read identifier first, then process it
+                let ident = self.read_identifier();
+                Ok(self.create_identifier_token(ident))
             },
+        }
+    }
 
-            // String interpolation
-            '"' => {
-                while !self.is_at_end() && self.peek() != '"' {
-                    if self.peek() == '{' {
-                        // Handle string interpolation
-                        self.advance(); // consume {
-                        while !self.is_at_end() && self.peek() != '}' {
-                            self.advance();
-                        }
-                        if !self.is_at_end() {
-                            self.advance(); // consume }
-                        }
-                    } else {
-                        self.advance();
-                    }
-                }
-                
-                if self.is_at_end() {
-                    Err("Unterminated string".to_string())
-                } else {
-                    self.advance(); // closing quote
-                    let string_content = self.source[self.start + 1..self.current - 1]
-                        .iter()
-                        .collect::<String>();
-                    Ok(Token {
-                        token_type: TokenType::String(string_content.clone()),
-                        literal: string_content.clone(),
+    fn string(&mut self) -> Result<Token, String> {
+        let mut string = String::new();
+        
+        while !self.is_at_end() && self.peek() != '"' {
+            if self.peek() == '{' {
+                if !string.is_empty() {
+                    return Ok(Token {
+                        token_type: TokenType::StringPart(string.clone()),
+                        literal: string,
                         line: self.line,
                         column: self.column,
-                    })
+                    });
                 }
-            },
-
-            // Line continuation
-            '\\' => Ok(self.create_token(TokenType::BackSlash)),
-
-            // Other symbols
-            ':' => Ok(self.create_token(TokenType::Colon)),
-            ',' => Ok(self.create_token(TokenType::Comma)),
-            '.' => Ok(self.create_token(TokenType::Dot)),
-            '[' => Ok(self.create_token(TokenType::OpenBracket)),
-            ']' => Ok(self.create_token(TokenType::CloseBracket)),
-            '(' => Ok(self.create_token(TokenType::OpenParen)),
-            ')' => Ok(self.create_token(TokenType::CloseParen)),
-            '+' => Ok(self.create_token(TokenType::Plus)),
-            '-' => Ok(self.create_token(TokenType::Minus)),
-            '*' => Ok(self.create_token(TokenType::Multiply)),
-            '/' => Ok(self.create_token(TokenType::Divide)),
-            '>' => Ok(self.create_token(TokenType::GreaterThan)),
-
-            // Numbers and identifiers
-            c if c.is_ascii_digit() => self.number_token(),
-            c if c.is_alphabetic() || c == '_' => self.identifier_token(),
-            
-            _ => Err(format!("Unexpected character: {}", c)),
+                return Ok(self.create_token(TokenType::LeftBrace));
+            }
+            string.push(self.advance());
         }
+
+        if self.is_at_end() {
+            return Err("Unterminated string".to_string());
+        }
+
+        // Consume the closing quote
+        self.advance();
+        
+        Ok(Token {
+            token_type: TokenType::String(string.clone()),
+            literal: string,
+            line: self.line,
+            column: self.column,
+        })
     }
 
     fn identifier_token(&mut self) -> Result<Token, String> {
@@ -335,7 +292,7 @@ impl Tokenizer {
             "using" => TokenType::Using,
             "loop" => TokenType::Loop,
             "while" => TokenType::While,
-            "yield" => TokenType::Yield,
+            "Emit" => TokenType::Emit,
             "match" => TokenType::Match,
             "output" => TokenType::Output,
             "raise" => TokenType::Raise,
@@ -367,8 +324,6 @@ impl Tokenizer {
             "Any" => TokenType::TypeAny,
             "Number" => TokenType::TypeNumber,
             "Error" => TokenType::TypeError,
-            "Person" => TokenType::TypePerson,
-            "BaseEntity" => TokenType::TypeBaseEntity,
 
             // Boolean literals
             "true" => TokenType::Boolean(true),
@@ -385,6 +340,88 @@ impl Tokenizer {
             line: self.line,
             column: self.column,
         })
+    }
+
+    fn identifier_type(&self, text: String) -> Result<Token, String> {
+        println!("Processing identifier: {}", text);
+        let token_type = match text.as_str() {
+            "Mapping" => {
+                println!("Found Mapping keyword");
+                TokenType::TypeMapping
+            },
+            "Text" => {
+                println!("Found Text keyword");
+                TokenType::TypeText
+            },
+            "of" => TokenType::Of,
+            "to" => TokenType::To,
+            "includes" => TokenType::Includes,
+            _ => {
+                println!("Unknown identifier: {}", text);
+                TokenType::Identifier(text.clone())
+            },
+        };
+
+        Ok(Token {
+            token_type,
+            literal: text,
+            line: self.line,
+            column: self.column,
+        })
+    }
+
+    fn read_identifier(&mut self) -> String {
+        let start = self.start;
+        while !self.is_at_end() && (self.peek().is_alphanumeric() || self.peek() == '_') {
+            self.advance();
+        }
+        self.source[start..self.current].iter().collect()
+    }
+
+    fn create_identifier_token(&self, text: String) -> Token {
+        let token_type = match text.as_str() {
+            "is" => TokenType::Is,
+            "as" => TokenType::As,
+            "Mapping" => TokenType::TypeMapping,
+            "Text" => TokenType::TypeText,
+            "includes" => TokenType::Includes,
+            "Object" => TokenType::Object,
+            "Job" => TokenType::Job,
+            "build" => TokenType::Build,
+            "defaults" => TokenType::Defaults,
+            "of" => TokenType::Of,
+            "to" => TokenType::To,
+            // "includes" => TokenType::Includes,
+            "show" => TokenType::Show,
+            "raise" => TokenType::Raise,
+            "await" => TokenType::Await,
+            "at" => TokenType::At,
+            "and" => TokenType::And,
+            "each" => TokenType::Each,
+            "becomes" => TokenType::Becomes,
+            "my" => TokenType::My,
+            "about" => TokenType::About,
+            "me" => TokenType::Me,
+            "loop" => TokenType::Loop,
+            "while" => TokenType::While,
+            "Emit" => TokenType::Emit,
+            "match" => TokenType::Match,
+            "output" => TokenType::Output,
+            "returns" => TokenType::Returns,
+            "requires" => TokenType::Requires,
+            "returning" => TokenType::Returning,
+            "new" => TokenType::New,
+            "with" => TokenType::With,
+            "using" => TokenType::Using,
+            _ => TokenType::Identifier(text.clone()),
+        };
+
+        Token {
+            token_type,
+            literal: text,
+            line: self.line,
+            column: self.column,
+        }
     }
 }
 

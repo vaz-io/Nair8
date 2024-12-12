@@ -3,7 +3,7 @@
 # Variable Declarations with Type Annotations (similar to TypeScript/Java)
 count as Whole                  # int/Integer type
 measure as Decimal is 3.14      # float/double type
-message as Text                # string type
+message as Text                 # string type
 flag as Logic                   # boolean type
 empty as Void                   # void/null type
 empty is null
@@ -16,18 +16,18 @@ number_collection is [1, 2, 3, 4, 5] as List[Whole]  # Generic List<int>
 
 # Dynamic Mapping with Static Type Annotation
 person_info as Mapping \
-    of Text to Any is \        # Dictionary<string, object> or Map<String, Object>
-    "name": Text is "John",
-    "age": Whole is 30,
-    "is_student": Logic is false
+    of Text to Any includes \             # Dictionary<string, object> or Map<String, Object>
+    name as Text is "John",
+    age as Whole is 30,
+    is_student as Logic is false
 
 # Function Declaration with Pattern Matching (similar to Scala/F# match expressions)
 Job process requires first, second, action as Number, Number, Text returning Whole:
-    when action is "add":        # Case/Switch statement equivalent
+    when action is "add":           # Case/Switch statement equivalent
         output first + second
     when action is "multiply":
         output first * second
-    or:                         # default case
+    or:                             # default case
         raise "Unknown action" as Error
 
 # Class Definition with Constructor and Inheritance (OOP style like Java/C#)
@@ -37,11 +37,11 @@ Object Person inherits BaseEntity:
     age as Whole
 
     build defaults name is "Unknown", age is 0:
-        my name is name         # 'my' is equivalent to 'this' or 'self'
+        my name is name                                 # 'my' is equivalent to 'this' or 'self'
         my age is age
     
     Job greetings returns Text:
-        output "I am {my name}, {my age} years old"  # String interpolation
+        output "I am {my name}, {my age} years old"     # String interpolation
     
     Job singleton returns Person:
         when my instance is Void:
@@ -51,20 +51,20 @@ Object Person inherits BaseEntity:
 
 # Exception Handling (try-catch-finally block)
 Job possible_risk:
-    do:                         # try block
+    do:                                     # try block
         result is 10 / 0
-    fail problem as DivideByZeroError:  # catch block
+    fail problem as DivideByZeroError:      # catch block
         show "Encountered: {problem.message}"
-    always:                     # finally block
+    always:                                 # finally block
         show "Examination finished"
 
 # Functional Programming Operations (similar to LINQ/Stream operations)
 numbers is [1, 2, 3, 4, 5] as List[Whole]
-squared is numbers and each number becomes number * number # map() operation
-filtered is numbers when each number > 2 # filter() operation
+squared is numbers and each number becomes number * number  # map() operation
+filtered is numbers when each number > 2                    # filter() operation
 
 # Asynchronous Function (similar to async/await in JS/C#)
-Job gather_data requires url as Text returns Promise[Text]:
+Job gather_data requires url as Text, returns Promise[Text]:
     response as Text is await http.fetch at url    # await keyword for async operations
     output response.content
 
@@ -81,12 +81,13 @@ Job describe_value requires value as Any returns Text:
             output "Unknown type"
 
 # Generator Function (similar to Python generators) # TODO: Implement as iterator/generator
-Job fibonacci requires max as Whole returns Whole:
+# Stream fibonnaci requires max as Whole, returns Whole:
+Job fibonacci requires max as Whole, returns Whole:
     first as Whole is 0
     second as Whole is 1
     
-    loop while true:            # Infinite loop with yield
-        # first            # Not yet implemented
+    loop while true:            # Infinite loop with Emit
+        # emit first            # Not yet implemented
         next as Whole is first + second
         first is second
         second is next
