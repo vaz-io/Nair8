@@ -29,7 +29,7 @@ Job process requires first, second, action as Number, Number, Text returning Who
         raise "Unknown action" as Error
 
 # Entity Definition with Inheritance
-Object Person extends BaseEntity:
+Object Person inherits BaseEntity:
     build defaults name as Text is "Unknown", age as Whole is 0:
         my name is name
         my age is age

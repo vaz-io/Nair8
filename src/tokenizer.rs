@@ -326,7 +326,7 @@ impl Tokenizer {
             "do" => TokenType::Do,
             "fail" => TokenType::Fail,
             "always" => TokenType::Always,
-            "extends" => TokenType::Extends,
+            "inherits" => TokenType::Extends,
             "returns" => TokenType::Returns,
             "requires" => TokenType::Requires,
             "returning" => TokenType::Returning,

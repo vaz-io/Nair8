@@ -4,10 +4,10 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type {
     Whole,    // Integer type
-    Real,     // Float type
+    Decimal,     // Float type
     Text,     // String type
     Truth,    // Boolean type
-    Nothing,  // Null type
+    Void,  // Null type
     Error,    // Error type
     Person,   // Person object type
     BaseEntity, // Base entity type
@@ -60,11 +60,11 @@ impl Analyzer {
                 use crate::tokenizer::TokenType;
                 Ok(match token_type {
                     TokenType::Number(n) => {
-                        if n.fract() == 0.0 { Type::Whole } else { Type::Real }
+                        if n.fract() == 0.0 { Type::Whole } else { Type::Decimal }
                     },
                     TokenType::String(_) => Type::Text,
                     TokenType::Boolean(_) => Type::Truth,
-                    TokenType::Null => Type::Nothing,
+                    TokenType::Null => Type::Void,
                     _ => return Err("Invalid literal type".to_string()),
                 })
             },
@@ -85,7 +85,7 @@ impl Analyzer {
                     TokenType::Multiply | TokenType::Divide => {
                         match (&left_type, &right_type) {
                             (Type::Whole, Type::Whole) => Ok(Type::Whole),
-                            (Type::Real, _) | (_, Type::Real) => Ok(Type::Real),
+                            (Type::Decimal, _) | (_, Type::Decimal) => Ok(Type::Decimal),
                             (Type::Text, Type::Text) if matches!(operator, TokenType::Plus) => {
                                 Ok(Type::Text)
                             },
@@ -99,14 +99,14 @@ impl Analyzer {
 
             Node::ShowStmt(expr) => {
                 self.check_node(expr)?;
-                Ok(Type::Nothing)
+                Ok(Type::Void)
             },
 
             Node::StringInterpolation { parts } => {
                 for part in parts {
                     let part_type = self.check_node(part)?;
-                    if !matches!(part_type, Type::Text | Type::Whole | Type::Real | 
-                               Type::Truth | Type::Nothing) {
+                    if !matches!(part_type, Type::Text | Type::Whole | Type::Decimal | 
+                               Type::Truth | Type::Void) {
                         return Err(format!("Cannot interpolate type {:?} in string", part_type));
                     }
                 }
@@ -137,10 +137,10 @@ impl Analyzer {
             Node::TypeAnnotation(type_name) => {
                 match type_name.as_str() {
                     "Whole" => Ok(Type::Whole),
-                    "Real" => Ok(Type::Real),
+                    "Decimal" => Ok(Type::Decimal),
                     "Text" => Ok(Type::Text),
                     "Truth" => Ok(Type::Truth),
-                    "Nothing" => Ok(Type::Nothing),
+                    "Void" => Ok(Type::Void),
                     "Error" => Ok(Type::Error),
                     "Person" => Ok(Type::Person),
                     "BaseEntity" => Ok(Type::BaseEntity),

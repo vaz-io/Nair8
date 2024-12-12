@@ -83,10 +83,10 @@ impl Runtime {
             let var_type = if let Some(declared_type) = self.variable_types.get(name) {
                 match declared_type.as_str() {
                     "Whole" => Type::Whole,
-                    "Real" => Type::Real,
+                    "Decimal" => Type::Decimal,
                     "Text" => Type::Text,
                     "Truth" => Type::Truth,
-                    "Nothing" => Type::Nothing,
+                    "Void" => Type::Void,
                     _ => Type::Any,
                 }
             } else {
@@ -135,11 +135,11 @@ impl Runtime {
                         if !matches!(value, Value::Null) {
                             let value_type = match &value {
                                 Value::Number(n) => {
-                                    if n.fract() == 0.0 { "Whole" } else { "Real" }
+                                    if n.fract() == 0.0 { "Whole" } else { "Decimal" }
                                 },
                                 Value::String(_) => "Text",
                                 Value::Boolean(_) => "Truth",
-                                Value::Null => "Nothing",
+                                Value::Null => "Void",
                                 Value::Object(ref class_name) => class_name,
                             };
                             
@@ -263,7 +263,7 @@ impl Runtime {
                             (Value::Number(n), "Whole") => {
                                 Value::Number(n.floor())
                             },
-                            (Value::Number(n), "Real") => {
+                            (Value::Number(n), "Decimal") => {
                                 Value::Number(n)
                             },
                             (Value::String(s), "Text") => {
@@ -303,11 +303,11 @@ impl Runtime {
                         if let Some(declared_type) = self.variable_types.get(&var_name) {
                             let new_type = match new_value {
                                 Value::Number(n) => {
-                                    if n.fract() == 0.0 { "Whole" } else { "Real" }
+                                    if n.fract() == 0.0 { "Whole" } else { "Decimal" }
                                 },
                                 Value::String(_) => "Text",
                                 Value::Boolean(_) => "Truth",
-                                Value::Null => "Nothing",
+                                Value::Null => "Void",
                                 Value::Object(ref class_name) => class_name,
                             };
 
