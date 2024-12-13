@@ -11,7 +11,7 @@
             "name": "keyword.control.vernacular"
         },
         {
-            "match": "\\b(Job|Object|Whole|Decimal|Text|Logic|Void|Any|Promise|List|Mapping|Error|Number)\\b",
+            "match": "\\b(Task|Object|Whole|Decimal|Text|Logic|Nothing|Any|Promise|List|Mapping|Error|Number)\\b",
             "name": "storage.type.vernacular"
         },
         {

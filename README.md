@@ -20,20 +20,20 @@ count as Whole        # Integer type
 measure as Decimal    # Float type
 message as Text       # String type
 flag as Truth         # Boolean type
-empty as Void         # Null type
+empty as Nothing         # Null type
 
 # Dynamic typing
 flexible is "Hello"   # Type inferred as Any
 flexible is 42        # Valid - Any type can change
 ```
 
-### Functions (Jobs)
+### Functions (Tasks)
 ```nair8
-Job calculate requires x, y as Whole returning Whole:
+Task calculate requires x, y as Whole returning Whole:
     output x + y
 
 # With multiple parameters
-Job greet requires name as Text, age as Whole:
+Task greet requires name as Text, age as Whole:
     show "Hello {name}, you are {age} years old"
 ```
 
@@ -55,7 +55,7 @@ Object Person inherits BaseEntity:
         my name is name
         my age is age
     
-    Job greet returns Text:
+    Task greet returns Text:
         output "Hello, I'm {my name}"
 ```
 

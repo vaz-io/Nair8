@@ -17,6 +17,8 @@ pub enum OpCode {
     Subtract,
     Multiply,
     Divide,
+    Modulo,
+    Power,
     
     // Control Flow
     Jump(usize),
@@ -48,6 +50,9 @@ pub enum Value {
     Boolean(bool),
     Null,
     Object(String),      // class name
+    Promise(String),     // class name
+    List(String),        // class name
+    Mapping(String),     // class name
 }
 
 // Add Display implementation for Value
@@ -59,6 +64,9 @@ impl std::fmt::Display for Value {
             Value::Boolean(b) => write!(f, "{}", b),
             Value::Null => write!(f, "null"),
             Value::Object(name) => write!(f, "[object {}]", name),
+            Value::Promise(name) => write!(f, "[promise {}]", name),
+            Value::List(name) => write!(f, "[list {}]", name),
+            Value::Mapping(name) => write!(f, "[mapping {}]", name),
         }
     }
 }
@@ -144,6 +152,7 @@ impl BytecodeGenerator {
                     crate::tokenizer::TokenType::Minus => OpCode::Subtract,
                     crate::tokenizer::TokenType::Multiply => OpCode::Multiply,
                     crate::tokenizer::TokenType::Divide => OpCode::Divide,
+                    crate::tokenizer::TokenType::Modulo => OpCode::Modulo,
                     _ => return Err("Unsupported binary operator".to_string()),
                 };
                 self.instructions.push(opcode);
@@ -270,6 +279,9 @@ impl BytecodeGenerator {
                     Value::Boolean(b) => self.emit(OpCode::Push(Value::Boolean(*b))),
                     Value::Null => self.emit(OpCode::Push(Value::Null)),
                     Value::Object(name) => self.emit(OpCode::Push(Value::Object(name.clone()))),
+                    Value::Promise(name) => self.emit(OpCode::Push(Value::Promise(name.clone()))),
+                    Value::List(name) => self.emit(OpCode::Push(Value::List(name.clone()))),
+                    Value::Mapping(name) => self.emit(OpCode::Push(Value::Mapping(name.clone()))),
                 }
                 Ok(())
             },

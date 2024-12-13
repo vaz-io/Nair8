@@ -8,7 +8,8 @@ use crate::analyzer::{Analyzer, Type};
 pub struct Runtime {
     tokenizer: Tokenizer,
     variables: HashMap<String, Value>,
-    variable_types: HashMap<String, String>,
+    variable_types: HashMap<String, Type>,
+    stack: Vec<Value>,
 }
 
 impl Runtime {
@@ -17,6 +18,7 @@ impl Runtime {
             tokenizer: Tokenizer::new(""),
             variables: HashMap::new(),
             variable_types: HashMap::new(),
+            stack: Vec::new(),
         }
     }
 
@@ -106,7 +108,7 @@ impl Runtime {
                     "Decimal" => Type::Decimal,
                     "Text" => Type::Text,
                     "Truth" => Type::Truth,
-                    "Void" => Type::Void,
+                    "Nothing" => Type::Nothing,
                     _ => Type::Any,
                 }
             } else {
@@ -172,7 +174,6 @@ impl Runtime {
                 OpCode::StoreVar(name) => {
                     let value = stack.pop().ok_or("Stack underflow")?;
                     
-                    // Check if this variable has a declared type
                     if let Some(declared_type) = self.variable_types.get(name) {
                         // Skip type checking if we're storing null during declaration
                         if !matches!(value, Value::Null) {
@@ -182,7 +183,7 @@ impl Runtime {
                                 },
                                 Value::String(_) => "Text",
                                 Value::Boolean(_) => "Truth",
-                                Value::Null => "Void",
+                                Value::Null => "Nothing",
                                 Value::Object(ref class_name) => class_name,
                             };
                             
@@ -351,12 +352,15 @@ impl Runtime {
                         if let Some(declared_type) = self.variable_types.get(&var_name) {
                             let new_type = match new_value {
                                 Value::Number(n) => {
-                                    if n.fract() == 0.0 { "Whole" } else { "Decimal" }
+                                    if n.fract() == 0.0 { Type::Whole } else { Type::Decimal }
                                 },
-                                Value::String(_) => "Text",
-                                Value::Boolean(_) => "Truth",
-                                Value::Null => "Void",
-                                Value::Object(ref class_name) => class_name,
+                                Value::String(_) => Type::Text,
+                                Value::Boolean(_) => Type::Truth,
+                                Value::Null => Type::Nothing,
+                                Value::Object(ref class_name) => Type::Object,
+                                Value::Promise(ref class_name) => Type::Promise,
+                                Value::List(ref class_name) => Type::List,
+                                Value::Mapping(ref class_name) => Type::Mapping,
                             };
 
                             if declared_type != new_type {
@@ -407,6 +411,76 @@ impl Runtime {
             (Value::String(s1), Value::String(s2)) => Ok(Value::String(s1 + &s2)),
             _ => Err("Can only concatenate strings".to_string()),
         }
+    }
+
+    fn execute(&mut self, instructions: &[OpCode]) -> Result<(), String> {
+        for instruction in instructions {
+            match instruction {
+                OpCode::Show => {
+                    if let Some(value) = self.stack.pop() {
+                        println!("{}", value);
+                    }
+                },
+                OpCode::Push(value) => {
+                    self.stack.push(value.clone());
+                },
+                OpCode::LoadVar(name) => {
+                    if let Some(value) = self.variables.get(name) {
+                        self.stack.push(value.clone());
+                    } else {
+                        return Err(format!("Undefined variable: {}", name));
+                    }
+                },
+                OpCode::StoreVar(name) => {
+                    let value = self.stack.pop().ok_or("Stack underflow")?;
+                    
+                    // Check type if variable has a declared type
+                    if let Some(declared_type) = self.variable_types.get(name) {
+                        let value_type = match &value {
+                            Value::Number(n) => {
+                                if n.fract() == 0.0 { Type::Whole } else { Type::Decimal }
+                            },
+                            Value::String(_) => Type::Text,
+                            Value::Boolean(_) => Type::Truth,
+                            Value::Null => Type::Nothing,
+                            Value::Object(_) => Type::Object,
+                            Value::Promise(_) => Type::Promise(Box::new(Type::Any)),
+                            Value::List(_) => Type::List(Box::new(Type::Any)),
+                            Value::Mapping(_) => Type::Map { key: Box::new(Type::Text), value: Box::new(Type::Any) },
+                        };
+                        
+                        if declared_type != &value_type {
+                            return Err(format!("Type mismatch: cannot assign {:?} to variable of type {:?}", 
+                                value_type, declared_type));
+                        }
+                    }
+                    
+                    self.variables.insert(name.clone(), value);
+                },
+                OpCode::Add | OpCode::Subtract | OpCode::Multiply | OpCode::Divide => {
+                    let b = self.stack.pop().ok_or("Stack underflow")?;
+                    let a = self.stack.pop().ok_or("Stack underflow")?;
+                    let result = match instruction {
+                        OpCode::Add => self.binary_op(a, b, |x, y| x + y)?,
+                        OpCode::Subtract => self.binary_op(a, b, |x, y| x - y)?,
+                        OpCode::Multiply => self.binary_op(a, b, |x, y| x * y)?,
+                        OpCode::Divide => self.binary_op(a, b, |x, y| x / y)?,
+                        _ => unreachable!(),
+                    };
+                    self.stack.push(result);
+                },
+                OpCode::Pop => {
+                    self.stack.pop();
+                },
+                OpCode::Duplicate => {
+                    if let Some(value) = self.stack.last() {
+                        self.stack.push(value.clone());
+                    }
+                },
+                _ => return Err(format!("Unhandled opcode: {:?}", instruction)),
+            }
+        }
+        Ok(())
     }
 }
 

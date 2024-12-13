@@ -42,7 +42,7 @@ pub enum TokenType {
     Me,
     
     // Declaration keywords
-    Job,
+    Task,
     Object,
     Build,
     Defaults,
@@ -52,7 +52,7 @@ pub enum TokenType {
     TypeDecimal, // Decimal number
     TypeText, // Text
     TypeLogic, // Boolean 
-    TypeVoid, // Null
+    TypeNothing, // Null
     TypeList, // List
     TypeMapping, // Mapping
     TypePromise, // Future
@@ -78,7 +78,14 @@ pub enum TokenType {
     Minus,
     Multiply,
     Divide,
+    Modulo,
+    Power,
+    Equals,
+    NotEquals,
     GreaterThan,
+    GreaterThanOrEqual,
+    LessThan,
+    LessThanOrEqual,
     BackSlash,      // For line continuation
 
     // Identifiers
@@ -185,30 +192,30 @@ impl Tokenizer {
     }
 
     fn number_token(&mut self) -> Result<Token, String> {
+        
         while self.peek().is_ascii_digit() {
             self.advance();
         }
 
         // Look for a decimal part
         if self.peek() == '.' && self.peek_next().is_ascii_digit() {
-            // Consume the "."
-            self.advance();
+            self.advance(); // Consume the "."
 
             while self.peek().is_ascii_digit() {
                 self.advance();
             }
         }
 
-        let number = self.source[self.start..self.current]
-            .iter()
-            .collect::<String>();
-        let number = number.parse::<f64>().unwrap();
-        Ok(Token {
-            token_type: TokenType::Number(number),
-            literal: number.to_string(),
-            line: self.line,
-            column: self.column,
-        })
+        let number_str: String = self.source[self.start..self.current].iter().collect();
+        match number_str.parse::<f64>() {
+            Ok(number) => Ok(Token {
+                token_type: TokenType::Number(number),
+                literal: number_str,
+                line: self.line,
+                column: self.column,
+            }),
+            Err(_) => Err("Invalid number".to_string()),
+        }
     }
 
     fn scan_token(&mut self) -> Result<Token, String> {
@@ -322,7 +329,7 @@ impl Tokenizer {
             "me" => TokenType::Me,
 
             // Declaration keywords
-            "Job" => TokenType::Job,
+            "Task" => TokenType::Task,
             "Object" => TokenType::Object,
             "build" => TokenType::Build,
             "defaults" => TokenType::Defaults,
@@ -332,7 +339,7 @@ impl Tokenizer {
             "Decimal" => TokenType::TypeDecimal,
             "Text" => TokenType::TypeText,
             "Logic" => TokenType::TypeLogic,
-            "Void" => TokenType::TypeVoid,
+            "Nothing" => TokenType::TypeNothing,
             "List" => TokenType::TypeList,
             "Mapping" => TokenType::TypeMapping,
             "Promise" => TokenType::TypePromise,
@@ -401,7 +408,7 @@ impl Tokenizer {
             "Text" => TokenType::TypeText,
             "includes" => TokenType::Includes,
             "Object" => TokenType::Object,
-            "Job" => TokenType::Job,
+            "Task" => TokenType::Task,
             "build" => TokenType::Build,
             "defaults" => TokenType::Defaults,
             "of" => TokenType::Of,
@@ -458,20 +465,12 @@ impl Tokenizer {
 
         let number_str: String = self.source[self.start..self.current].iter().collect();
         match number_str.parse::<f64>() {
-            Ok(number) => {
-                let token_type = if is_decimal {
-                    TokenType::TypeDecimal
-                } else {
-                    TokenType::TypeWhole
-                };
-                
-                Ok(Token {
-                    token_type,
-                    literal: number_str,
-                    line: self.line,
-                    column: self.column,
-                })
-            },
+            Ok(number) => Ok(Token {
+                token_type: TokenType::Number(number),
+                literal: number_str,
+                line: self.line,
+                column: self.column,
+            }),
             Err(_) => Err("Invalid number".to_string()),
         }
     }

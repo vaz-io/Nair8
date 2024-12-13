@@ -9,7 +9,7 @@ pub enum Node {
         type_annotation: Option<Box<Node>>,
         initializer: Option<Box<Node>>,
     },
-    JobDecl {
+    TaskDecl {
         name: String,
         params: Vec<Node>,
         return_type: Option<Box<Node>>,
@@ -183,8 +183,8 @@ impl Parser {
         }
     }
 
-    fn job_declaration(&mut self) -> Result<Node, String> {
-        let name = self.consume_identifier("Expected job name")?;
+    fn Task_declaration(&mut self) -> Result<Node, String> {
+        let name = self.consume_identifier("Expected Task name")?;
         
         let mut params = Vec::new();
         if self.match_token(&[TokenType::Requires]) {
@@ -197,10 +197,10 @@ impl Parser {
             None
         };
 
-        self.consume(&TokenType::Colon, "Expected ':' after job declaration")?;
+        self.consume(&TokenType::Colon, "Expected ':' after Task declaration")?;
         let body = Box::new(self.block()?);
 
-        Ok(Node::JobDecl {
+        Ok(Node::TaskDecl {
             name,
             params,
             return_type,
@@ -228,8 +228,8 @@ impl Parser {
                     return Err("Object can only have one constructor".to_string());
                 }
                 constructor = Some(Box::new(self.constructor_declaration()?));
-            } else if self.match_token(&[TokenType::Job]) {
-                methods.push(self.job_declaration()?);
+            } else if self.match_token(&[TokenType::Task]) {
+                methods.push(self.Task_declaration()?);
             } else {
                 break;
             }
@@ -304,9 +304,9 @@ impl Parser {
                 self.advance();
                 Ok(Node::TypeAnnotation("Logic".to_string()))
             },
-            TokenType::TypeVoid => {
+            TokenType::TypeNothing => {
                 self.advance();
-                Ok(Node::TypeAnnotation("Void".to_string()))
+                Ok(Node::TypeAnnotation("Nothing".to_string()))
             },
             TokenType::TypeList => {
                 self.advance();
@@ -360,7 +360,7 @@ impl Parser {
         self.consume(&TokenType::Colon, "Expected ':' after constructor parameters")?;
         let body = Box::new(self.block()?);
         
-        Ok(Node::JobDecl {
+        Ok(Node::TaskDecl {
             name: "build".to_string(),
             params,
             return_type: None,
@@ -369,26 +369,111 @@ impl Parser {
     }
 
     fn expression(&mut self) -> Result<Node, String> {
-        if self.match_token(&[TokenType::New]) {
-            self.new_expression()
-        } else if self.match_token(&[TokenType::Await]) {
-            Ok(Node::AwaitExpr {
-                value: Box::new(self.expression()?),
-            })
-        } else if let TokenType::Identifier(_) = self.peek().token_type {
-            // This could be a variable reference or an assignment
-            let name = self.consume_identifier("Expected identifier")?;
-            
-            if self.match_token(&[TokenType::Is]) {
-                // This is an assignment
-                let value = Box::new(self.expression()?);
-                Ok(Node::Assignment { name, value })
-            } else {
-                // This is just a variable reference
+        match self.peek().token_type {
+            TokenType::Identifier(_) => {
+                let name = self.consume_identifier("Expected identifier")?;
                 Ok(Node::Variable(name))
-            }
-        } else {
-            self.or()  // Start of the expression precedence chain
+            },
+            TokenType::String(_) => self.string_literal(),
+            TokenType::Number(_) => {
+                if let TokenType::Number(n) = self.peek().token_type {
+                    self.advance();
+                    Ok(Node::Literal(Value::Number(n)))
+                } else {
+                    Err("Expected number".to_string())
+                }
+            },
+            TokenType::Boolean(_) => {
+                if let TokenType::Boolean(b) = self.peek().token_type {
+                    self.advance();
+                    Ok(Node::Literal(Value::Boolean(b)))
+                } else {
+                    Err("Expected boolean".to_string())
+                }
+            },
+            TokenType::Null => {
+                self.advance();
+                Ok(Node::Literal(Value::Null))
+            },
+            TokenType::New => {
+                self.new_expression()
+            },
+            TokenType::Await => {
+                Ok(Node::AwaitExpr {
+                    value: Box::new(self.expression()?),
+                })
+            },
+            TokenType::Quote => {
+                let mut parts = Vec::new();
+                while !self.check(&TokenType::Quote) && !self.is_at_end() {
+                    if self.match_token(&[TokenType::LeftBrace]) {
+                        let expr = self.expression()?;
+                        self.consume(&TokenType::RightBrace, "Expected '}' after expression")?;
+                        parts.push(expr);
+                    } else {
+                        let text = self.consume_string_part()?;
+                        parts.push(Node::Literal(Value::String(text)));
+                    }
+                }
+                self.consume(&TokenType::Quote, "Expected '\"' after string")?;
+                Ok(Node::StringInterpolation { parts })
+            },
+            TokenType::TypeMapping => {
+                let mut entries = Vec::new();
+                loop {
+                    let param_name = self.consume_identifier("Expected parameter name")?;
+                    let (param_type, value) = if self.match_token(&[TokenType::As]) {
+                        let param_type = self.type_annotation()?;
+                        self.consume(&TokenType::Is, "Expected 'is' after type")?;
+                        let value = self.expression()?;
+                        (Some(param_type), value)
+                    } else if self.match_token(&[TokenType::Is]) {
+                        let value = self.expression()?;
+                        (None, value)
+                    } else {
+                        return Err("Expected 'as' or 'is' after parameter name".to_string());
+                    };
+                    entries.push((param_name, param_type, value));
+                    if !self.match_token(&[TokenType::Comma]) {
+                        break;
+                    }
+                    while self.peek().token_type == TokenType::NewLine {
+                        self.advance();
+                    }
+                }
+                Ok(Node::MappingLiteral { entries })
+            },
+            TokenType::TypeList => {
+                self.advance();
+                let element_type = Box::new(self.type_annotation()?);
+                self.consume(&TokenType::CloseBracket, "Expected ']' after type parameter")?;
+                Ok(Node::ListType { element_type })
+            },
+            TokenType::TypePromise => {
+                self.advance();
+                let value_type = Box::new(self.type_annotation()?);
+                self.consume(&TokenType::CloseBracket, "Expected ']' after type parameter")?;
+                Ok(Node::PromiseType { value_type })
+            },
+            // TokenType::TypeAnnotation => {
+            //     let type_name = self.consume_identifier("Expected type name")?;
+            //     match type_name.as_str() {
+            //         "Mapping" => Ok(Node::MappingType {
+            //             key_type: Box::new(Node::TypeAnnotation("Text".to_string())),
+            //             value_type: Box::new(Node::TypeAnnotation("Any".to_string())),
+            //         }),
+            //         "Whole" => Ok(Node::TypeAnnotation("Whole".to_string())),
+            //         "Decimal" => Ok(Node::TypeAnnotation("Decimal".to_string())),
+            //         "Text" => Ok(Node::TypeAnnotation("Text".to_string())),
+            //         "Truth" => Ok(Node::TypeAnnotation("Logic".to_string())),
+            //         "Nothing" => Ok(Node::TypeAnnotation("Nothing".to_string())),
+            //         "Any" => Ok(Node::TypeAnnotation("Any".to_string())),
+            //         "Number" => Ok(Node::TypeAnnotation("Number".to_string())),
+            //         "Error" => Ok(Node::TypeAnnotation("Error".to_string())),
+            //         _ => Err(format!("Unknown type: {}", type_name)),
+            //     }
+            // },
+            _ => Err("Expected expression".to_string()),
         }
     }
 
@@ -678,8 +763,9 @@ impl Parser {
     }
 
     fn show_statement(&mut self) -> Result<Node, String> {
-        let value = Box::new(self.expression()?);
-        Ok(Node::ShowStmt(value))
+        self.advance(); // Consume 'show'
+        let expr = self.expression()?;
+        Ok(Node::ShowStmt(Box::new(expr)))
     }
 
     fn raise_statement(&mut self) -> Result<Node, String> {
@@ -829,15 +915,46 @@ impl Parser {
         match self.peek().token_type {
             TokenType::Show => {
                 self.advance(); // Consume 'show'
-                let expr = self.expression()?;
-                Ok(Node::ShowStmt(Box::new(expr)))
+                match &self.peek().token_type {
+                    TokenType::Identifier(_) => {
+                        let name = self.consume_identifier("Expected variable name after 'show'")?;
+                        Ok(Node::ShowStmt(Box::new(Node::Variable(name))))
+                    },
+                    TokenType::String(_) => {
+                        let expr = self.string_literal()?;
+                        Ok(Node::ShowStmt(Box::new(expr)))
+                    },
+                    TokenType::Number(_) => {
+                        if let TokenType::Number(n) = self.advance().token_type {
+                            Ok(Node::ShowStmt(Box::new(Node::Literal(Value::Number(n)))))
+                        } else {
+                            Err("Expected number".to_string())
+                        }
+                    },
+                    TokenType::Boolean(_) => {
+                        let expr = self.boolean_literal()?;
+                        Ok(Node::ShowStmt(Box::new(expr)))
+                    },
+                    TokenType::Null | TokenType::TypeMapping => {
+                        Ok(Node::ShowStmt(Box::new(Node::Literal(Value::Null))))
+                    },
+                    TokenType::TypePromise => {
+                        let expr = self.promise_literal()?;
+                        Ok(Node::ShowStmt(Box::new(expr)))
+                    },
+                    TokenType::TypeList => {
+                        let expr = self.list_literal()?;
+                        Ok(Node::ShowStmt(Box::new(expr)))
+                    },
+                    _ => Err("Expected variable name, string, or number after 'show'".to_string()),
+                }
             },
             TokenType::Raise => {
-                self.advance(); // Consume 'raise'
+                self.advance();
                 self.raise_statement()
             },
             TokenType::Returns => {
-                self.advance(); // Consume 'returns'
+                self.advance();
                 self.return_statement()
             },
             TokenType::Requires => {
@@ -924,7 +1041,7 @@ impl Parser {
                 self.advance(); // Consume 'output'
                 self.declaration()
             },
-            _ => self.declaration(),
+            _ => self.expression_statement(),
         }
     }
 
@@ -981,16 +1098,15 @@ impl Parser {
             },
             Node::TypeAnnotation(type_name) => {
                 match type_name.as_str() {
-                    "Mapping" => Ok(Type::Map {
-                        key: Box::new(Type::Text),
-                        value: Box::new(Type::Any),
-                    }),
                     "Whole" => Ok(Type::Whole),
                     "Decimal" => Ok(Type::Decimal),
                     "Text" => Ok(Type::Text),
                     "Truth" => Ok(Type::Truth),
-                    "Void" => Ok(Type::Void),
+                    "Nothing" => Ok(Type::Nothing),
                     "Any" => Ok(Type::Any),
+                    "Promise" => Ok(Type::Promise(Box::new(Type::Any))),
+                    "List" => Ok(Type::List(Box::new(Type::Any))),
+                    "Mapping" => Ok(Type::Map { key: Box::new(Type::Text), value: Box::new(Type::Any) }),
                     _ => Err(format!("Unknown type: {}", type_name)),
                 }
             },

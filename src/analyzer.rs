@@ -8,7 +8,7 @@ pub enum Type {
     Decimal,    // Float type
     Text,       // String type
     Truth,      // Boolean type
-    Void,       // Null type
+    Nothing,       // Null type
     Error,      // Error type
     Any,        // Any type (used for variables without type annotation)
     Object,     // Object type
@@ -65,8 +65,11 @@ impl Analyzer {
                     Value::Number(_) => Type::Whole,
                     Value::String(_) => Type::Text,
                     Value::Boolean(_) => Type::Truth,
-                    Value::Null => Type::Void,
+                    Value::Null => Type::Nothing,
                     Value::Object(_) => Type::Object,
+                    Value::Promise(_) => Type::Promise(Box::new(Type::Any)),
+                    Value::List(_) => Type::List(Box::new(Type::Any)),
+                    Value::Mapping(_) => Type::Map { key: Box::new(Type::Text), value: Box::new(Type::Any) },
                 })
             },
 
@@ -101,7 +104,7 @@ impl Analyzer {
 
             Node::ShowStmt(expr) => {
                 self.check_node(expr)?;
-                Ok(Type::Void)
+                Ok(Type::Nothing)
             },
 
             Node::StringInterpolation { parts } => {
@@ -178,7 +181,7 @@ impl Analyzer {
                     "Decimal" => Ok(Type::Decimal),
                     "Text" => Ok(Type::Text),
                     "Truth" => Ok(Type::Truth),
-                    "Void" => Ok(Type::Void),
+                    "Nothing" => Ok(Type::Nothing),
                     "Error" => Ok(Type::Error),
                     "Object" => Ok(Type::Object),
                     _ => Err(format!("Unknown type: {}", type_name)),
@@ -212,11 +215,11 @@ impl Analyzer {
             TokenType::TypeDecimal => Type::Decimal,
             TokenType::TypeText => Type::Text,
             TokenType::TypeLogic => Type::Truth,
-            TokenType::TypeVoid => Type::Void,
+            TokenType::TypeNothing => Type::Nothing,
             TokenType::Number(_) => Type::Decimal,  // Assuming all numbers are whole by default
             TokenType::String(_) => Type::Text,
             TokenType::Boolean(_) => Type::Truth,
-            TokenType::Null => Type::Void,
+            TokenType::Null => Type::Nothing,
             _ => Type::Any,
         }
     }
